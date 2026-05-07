@@ -48,7 +48,12 @@ pipeline {
         stage('Run Tests') {
             steps {
                 dir('notes-automation') {
-                    bat '..\\%VENV%\\Scripts\\python -m pytest -v --alluredir=allure-results'
+                    script {
+                        def result = bat(returnStatus: true, script: '..\\%VENV%\\Scripts\\python -m pytest -v --alluredir=allure-results')
+                        if (result != 0) {
+                            currentBuild.result = 'UNSTABLE'
+                        }
+                    }
                 }
             }
         }
@@ -72,8 +77,11 @@ pipeline {
         success {
             echo 'Pipeline executed successfully.'
         }
+        unstable {
+            echo 'Some test cases failed but report was generated.'
+        }
         failure {
-            echo 'Some test cases failed or pipeline encountered issues.'
+            echo 'Pipeline encountered critical issues.'
         }
     }
 }
