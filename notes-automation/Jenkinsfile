@@ -1,32 +1,27 @@
 pipeline {
     agent any
-
     environment {
         VENV = 'venv'
     }
-
     stages {
-
         stage('Create Virtual Environment') {
             steps {
                 bat 'py -m venv %VENV%'
             }
         }
-
         stage('Install Dependencies') {
             steps {
                 bat '.\\%VENV%\\Scripts\\python -m pip install --upgrade pip'
                 bat '.\\%VENV%\\Scripts\\pip install -r notes-automation\\requirements.txt'
             }
         }
-
         stage('Start Selenium Grid') {
             steps {
-
-                bat 'docker network create grid || exit 0'
-
+                bat(returnStatus: true, script: 'docker network inspect grid || docker network create grid')
+                bat(returnStatus: true, script: 'docker rm -f selenium-hub')
+                bat(returnStatus: true, script: 'docker rm -f chrome-node')
                 bat '''
-                docker run -d --rm ^
+                docker run -d ^
                 --name selenium-hub ^
                 --network grid ^
                 -p 4442:4442 ^
@@ -34,21 +29,22 @@ pipeline {
                 -p 4444:4444 ^
                 selenium/hub:4.21.0
                 '''
-
                 bat '''
-                docker run -d --rm ^
+                docker run -d ^
                 --name chrome-node ^
                 --network grid ^
                 -e SE_EVENT_BUS_HOST=selenium-hub ^
                 -e SE_EVENT_BUS_PUBLISH_PORT=4442 ^
                 -e SE_EVENT_BUS_SUBSCRIBE_PORT=4443 ^
+                -e SE_NODE_MAX_SESSIONS=2 ^
+                -e SE_NODE_SESSION_TIMEOUT=300 ^
                 selenium/node-chrome:4.21.0
                 '''
-
-                bat 'timeout /t 15'
+                script {
+                    sleep(time: 20, unit: 'SECONDS')
+                }
             }
         }
-
         stage('Run Tests') {
             steps {
                 dir('notes-automation') {
@@ -56,7 +52,6 @@ pipeline {
                 }
             }
         }
-
         stage('Generate Allure Report') {
             steps {
                 allure(
@@ -66,21 +61,17 @@ pipeline {
             }
         }
     }
-
     post {
-
         always {
-
             archiveArtifacts artifacts: 'notes-automation/allure-results/**', fingerprint: true
-
-            bat 'docker stop chrome-node || exit 0'
-            bat 'docker stop selenium-hub || exit 0'
+            bat(returnStatus: true, script: 'docker stop chrome-node')
+            bat(returnStatus: true, script: 'docker stop selenium-hub')
+            bat(returnStatus: true, script: 'docker rm -f chrome-node')
+            bat(returnStatus: true, script: 'docker rm -f selenium-hub')
         }
-
         success {
             echo 'Pipeline executed successfully.'
         }
-
         failure {
             echo 'Some test cases failed or pipeline encountered issues.'
         }
