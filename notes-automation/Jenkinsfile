@@ -13,8 +13,7 @@ pipeline {
 
         stage('Clone Repository') {
             steps {
-                git branch: 'main',
-                url: 'https://github.com/HarshithRaoPalle/notes-automation.git'
+                git branch: 'main', url: 'https://github.com/HarshithRaoPalle/notes-automation.git'
             }
         }
 
@@ -26,7 +25,7 @@ pipeline {
 
         stage('Install Dependencies') {
             steps {
-                bat '.\\%VENV%\\Scripts\\pip install --upgrade pip'
+                bat '.\\%VENV%\\Scripts\\python -m pip install --upgrade pip'
                 bat '.\\%VENV%\\Scripts\\pip install -r requirements.txt'
             }
         }
@@ -35,9 +34,25 @@ pipeline {
             steps {
                 bat 'docker network create grid || exit 0'
 
-                bat 'docker run -d --rm --name selenium-hub --network grid -p 4442:4442 -p 4443:4443 -p 4444:4444 selenium/hub:4.21.0'
+                bat '''
+                docker run -d --rm ^
+                --name selenium-hub ^
+                --network grid ^
+                -p 4442:4442 ^
+                -p 4443:4443 ^
+                -p 4444:4444 ^
+                selenium/hub:4.21.0
+                '''
 
-                bat 'docker run -d --rm --name chrome-node --network grid -e SE_EVENT_BUS_HOST=selenium-hub -e SE_EVENT_BUS_PUBLISH_PORT=4442 -e SE_EVENT_BUS_SUBSCRIBE_PORT=4443 selenium/node-chrome:4.21.0'
+                bat '''
+                docker run -d --rm ^
+                --name chrome-node ^
+                --network grid ^
+                -e SE_EVENT_BUS_HOST=selenium-hub ^
+                -e SE_EVENT_BUS_PUBLISH_PORT=4442 ^
+                -e SE_EVENT_BUS_SUBSCRIBE_PORT=4443 ^
+                selenium/node-chrome:4.21.0
+                '''
             }
         }
 
@@ -49,9 +64,11 @@ pipeline {
 
         stage('Generate Allure Report') {
             steps {
-                allure includeProperties: false,
-                jdk: '',
-                results: [[path: 'allure-results']]
+                allure(
+                    includeProperties: false,
+                    jdk: '',
+                    results: [[path: 'allure-results']]
+                )
             }
         }
     }
@@ -73,4 +90,4 @@ pipeline {
             echo 'Pipeline execution failed.'
         }
     }
-} 
+}
