@@ -1,10 +1,6 @@
 pipeline {
     agent any
 
-    tools {
-        jdk 'jdk17'
-    }
-
     environment {
         VENV = 'venv'
     }
@@ -32,7 +28,7 @@ pipeline {
 
         stage('Start Selenium Grid') {
             steps {
-                bat 'docker network create grid || exit 0'
+                bat 'docker network create grid'
 
                 bat '''
                 docker run -d --rm ^
@@ -78,8 +74,8 @@ pipeline {
         always {
             archiveArtifacts artifacts: 'allure-results/**', fingerprint: true
 
-            bat 'docker stop chrome-node || exit 0'
-            bat 'docker stop selenium-hub || exit 0'
+            bat 'docker stop chrome-node'
+            bat 'docker stop selenium-hub'
         }
 
         success {
