@@ -7,28 +7,23 @@ pipeline {
 
     stages {
 
-        stage('Clone Repository') {
-            steps {
-                git branch: 'main', url: 'https://github.com/HarshithRaoPalle/notes-automation.git'
-            }
-        }
-
         stage('Create Virtual Environment') {
             steps {
-                bat 'python -m venv %VENV%'
+                bat 'py -m venv %VENV%'
             }
         }
 
         stage('Install Dependencies') {
             steps {
                 bat '.\\%VENV%\\Scripts\\python -m pip install --upgrade pip'
-                bat '.\\%VENV%\\Scripts\\pip install -r requirements.txt'
+                bat '.\\%VENV%\\Scripts\\pip install -r notes-automation\\requirements.txt'
             }
         }
 
         stage('Start Selenium Grid') {
             steps {
-                bat 'docker network create grid'
+
+                bat 'docker network create grid || exit 0'
 
                 bat '''
                 docker run -d --rm ^
@@ -49,12 +44,16 @@ pipeline {
                 -e SE_EVENT_BUS_SUBSCRIBE_PORT=4443 ^
                 selenium/node-chrome:4.21.0
                 '''
+
+                bat 'timeout /t 15'
             }
         }
 
         stage('Run Tests') {
             steps {
-                bat '.\\%VENV%\\Scripts\\python -m pytest -v --alluredir=allure-results'
+                dir('notes-automation') {
+                    bat '..\\%VENV%\\Scripts\\python -m pytest -v --alluredir=allure-results'
+                }
             }
         }
 
@@ -62,8 +61,7 @@ pipeline {
             steps {
                 allure(
                     includeProperties: false,
-                    jdk: '',
-                    results: [[path: 'allure-results']]
+                    results: [[path: 'notes-automation/allure-results']]
                 )
             }
         }
@@ -72,10 +70,11 @@ pipeline {
     post {
 
         always {
-            archiveArtifacts artifacts: 'allure-results/**', fingerprint: true
 
-            bat 'docker stop chrome-node'
-            bat 'docker stop selenium-hub'
+            archiveArtifacts artifacts: 'notes-automation/allure-results/**', fingerprint: true
+
+            bat 'docker stop chrome-node || exit 0'
+            bat 'docker stop selenium-hub || exit 0'
         }
 
         success {
@@ -83,7 +82,7 @@ pipeline {
         }
 
         failure {
-            echo 'Pipeline execution failed.'
+            echo 'Some test cases failed or pipeline encountered issues.'
         }
     }
 }
